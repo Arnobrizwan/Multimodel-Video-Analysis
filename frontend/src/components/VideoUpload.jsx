@@ -24,8 +24,13 @@ export default function VideoUpload({ onVideoProcessed }) {
     }
 
     try {
+      const token = localStorage.getItem('access_token')
       const response = await axios.post('http://localhost:8000/process_video', {
         youtube_url: url
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       })
 
       onVideoProcessed(response.data)

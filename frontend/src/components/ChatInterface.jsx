@@ -27,9 +27,14 @@ export default function ChatInterface({ videoId, onTimestampClick }) {
     setMessages(prev => [...prev, { type: 'user', text: userMessage }])
 
     try {
+      const token = localStorage.getItem('access_token')
       const response = await axios.post('http://localhost:8000/chat', {
         video_id: videoId,
         question: userMessage
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       })
 
       // Add AI response

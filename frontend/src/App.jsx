@@ -1,4 +1,6 @@
+import { useState, useEffect } from 'react'
 import { VideoProvider, useVideo } from './context/VideoContext'
+import AuthForm from './components/AuthForm'
 import VideoUpload from './components/VideoUpload'
 import VideoPlayer from './components/VideoPlayer'
 import SectionList from './components/SectionList'
@@ -7,6 +9,35 @@ import VisualSearch from './components/VisualSearch'
 
 function AppContent() {
   const { videoData, currentTime, handleVideoProcessed, handleTimestampClick, resetVideo } = useVideo()
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [user, setUser] = useState(null)
+
+  useEffect(() => {
+    // Check if user is already logged in
+    const token = localStorage.getItem('access_token')
+    const userId = localStorage.getItem('user_id')
+    if (token && userId) {
+      setIsAuthenticated(true)
+      setUser({ user_id: userId })
+    }
+  }, [])
+
+  const handleAuthSuccess = (authData) => {
+    setIsAuthenticated(true)
+    setUser({ user_id: authData.user_id })
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('user_id')
+    setIsAuthenticated(false)
+    setUser(null)
+    resetVideo()
+  }
+
+  if (!isAuthenticated) {
+    return <AuthForm onAuthSuccess={handleAuthSuccess} />
+  }
 
   if (!videoData) {
     return <VideoUpload onVideoProcessed={handleVideoProcessed} />
@@ -28,15 +59,26 @@ function AppContent() {
               <p className="text-xs text-gray-500">Powered by Gemini 2.5 Pro</p>
             </div>
           </div>
-          <button
-            onClick={resetVideo}
-            className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium px-4 py-2 rounded-lg hover:bg-blue-50 transition-all"
-          >
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd"/>
-            </svg>
-            Analyze New Video
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={resetVideo}
+              className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium px-4 py-2 rounded-lg hover:bg-blue-50 transition-all"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd"/>
+              </svg>
+              Analyze New Video
+            </button>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-800 font-medium px-4 py-2 rounded-lg hover:bg-gray-50 transition-all"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd"/>
+              </svg>
+              Logout
+            </button>
+          </div>
         </div>
       </div>
 

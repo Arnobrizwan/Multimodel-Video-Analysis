@@ -14,11 +14,16 @@ export default function VisualSearch({ videoId, onTimestampClick }) {
     setSearched(true)
     
     try {
+      const token = localStorage.getItem('access_token')
       const response = await axios.post('http://localhost:8000/visual_search', {
         video_id: videoId,
         query: query
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       })
-      
+
       setResults(response.data.matches)
     } catch (error) {
       console.error('Visual search failed:', error)
