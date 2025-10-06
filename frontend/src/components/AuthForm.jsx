@@ -17,12 +17,23 @@ export default function AuthForm({ onAuthSuccess }) {
     setError('')
 
     try {
-      const endpoint = isLogin ? '/auth/login' : '/auth/register'
-      const payload = isLogin
-        ? { username: formData.username, password: formData.password }
-        : formData
+      let response
 
-      const response = await axios.post(`http://localhost:8000${endpoint}`, payload)
+      if (isLogin) {
+        // Login expects form data, not JSON
+        const formDataParams = new URLSearchParams()
+        formDataParams.append('username', formData.username)
+        formDataParams.append('password', formData.password)
+
+        response = await axios.post('http://localhost:8000/auth/login', formDataParams, {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
+        })
+      } else {
+        // Register expects JSON
+        response = await axios.post('http://localhost:8000/auth/register', formData)
+      }
 
       // Store token in localStorage
       localStorage.setItem('access_token', response.data.access_token)

@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, validator
 import google.generativeai as genai
@@ -80,8 +81,10 @@ def get_cors_origins():
         dev_origins = [
             "http://localhost:5173",
             "http://localhost:3000",
+            "http://localhost:3001",
             "http://127.0.0.1:5173",
-            "http://127.0.0.1:3000"
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:3001"
         ]
         print(f"CORS: Development mode - allowing localhost origins: {dev_origins}")
         return dev_origins
@@ -217,12 +220,12 @@ class VideoRequest(BaseModel):
         if parsed.scheme not in ['http', 'https']:
             raise ValueError("Only HTTP/HTTPS URLs are allowed")
 
-        # Validate YouTube URL format
-        youtube_regex = r'^(https?://)?(www\.)?(youtube\.com/(watch\?v=|embed/|v/|shorts/)|youtu\.be/)[\w-]{11}.*$'
+        # Validate YouTube URL format (support videos, shorts, and playlists)
+        youtube_regex = r'^(https?://)?(www\.)?(youtube\.com/(watch\?v=|embed/|v/|shorts/|playlist\?list=)|youtu\.be/)[\w-]+.*$'
         if not re.match(youtube_regex, v):
             raise ValueError(
                 "Invalid YouTube URL format. Expected format: "
-                "https://www.youtube.com/watch?v=VIDEO_ID or https://youtu.be/VIDEO_ID"
+                "https://www.youtube.com/watch?v=VIDEO_ID, playlist, or shorts"
             )
 
         return v
@@ -357,6 +360,36 @@ def extract_video_id(url: str) -> str:
     raise ValueError("Invalid YouTube URL format. Supported formats: youtube.com/watch?v=, youtu.be/, youtube.com/shorts/, youtube.com/embed/")
 
 
+def get_playlist_video_ids(playlist_url: str) -> List[str]:
+    """Extract all video IDs from a YouTube playlist"""
+    import re
+
+    # Extract playlist ID from URL
+    playlist_id_match = re.search(r'list=([\w-]+)', playlist_url)
+    if not playlist_id_match:
+        raise ValueError("Invalid playlist URL")
+
+    playlist_id = playlist_id_match.group(1)
+
+    # Use yt-dlp to get playlist info
+    ydl_opts = {
+        'extract_flat': True,  # Don't download, just extract info
+        'quiet': True,
+        'no_warnings': True,
+    }
+
+    video_ids = []
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        playlist_info = ydl.extract_info(f'https://www.youtube.com/playlist?list={playlist_id}', download=False)
+
+        if 'entries' in playlist_info:
+            for entry in playlist_info['entries']:
+                if entry and 'id' in entry:
+                    video_ids.append(entry['id'])
+
+    return video_ids
+
+
 def get_transcript(video_id: str) -> Optional[List[Dict]]:
     """Fetch transcript from YouTube video - returns None if not available"""
     try:
@@ -390,10 +423,15 @@ def get_transcript(video_id: str) -> Optional[List[Dict]]:
 def download_youtube_video(video_id: str, output_path: str) -> str:
     """Download YouTube video for Gemini analysis"""
     ydl_opts = {
-        'format': 'best[ext=mp4][height<=720]/best[ext=mp4]/best',  # Prefer MP4, max 720p
+        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',  # Most flexible
         'outtmpl': output_path,
         'quiet': True,
         'no_warnings': True,
+        'merge_output_format': 'mp4',  # Force MP4 output
+        'postprocessors': [{
+            'key': 'FFmpegVideoConvertor',
+            'preferedformat': 'mp4',
+        }],
     }
     
     url = f'https://www.youtube.com/watch?v={video_id}'
@@ -671,9 +709,9 @@ async def register(user_create: UserCreate):
 
 
 @app.post("/auth/login", response_model=Token)
-async def login(username: str, password: str):
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     """Login with username and password"""
-    user = authenticate_user(username, password)
+    user = authenticate_user(form_data.username, form_data.password)
     if not user:
         raise HTTPException(
             status_code=401,
@@ -712,16 +750,32 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
 @app.post("/process_video", dependencies=[Depends(check_rate_limit)])
 async def process_video(request: VideoRequest, current_user: User = Depends(get_current_user)):
     """
-    Process a YouTube video:
-    1. Extract video ID
-    2. Try to get transcript OR download and analyze video with Gemini
-    3. Generate section breakdown
-    4. Create embeddings
+    Process a YouTube video or playlist:
+    1. Check if URL is a playlist - if so, extract first video
+    2. Extract video ID
+    3. Try to get transcript OR download and analyze video with Gemini
+    4. Generate section breakdown
+    5. Create embeddings
     """
     try:
-        # Step 1: Extract video ID
-        video_id = extract_video_id(request.youtube_url)
-        print(f"Processing video: {video_id}")
+        # Check if this is a playlist URL
+        is_playlist = 'list=' in request.youtube_url and 'playlist?' in request.youtube_url
+
+        if is_playlist:
+            print(f"Detected playlist URL, extracting videos...")
+            video_ids = get_playlist_video_ids(request.youtube_url)
+
+            if not video_ids:
+                raise HTTPException(status_code=400, detail="Playlist is empty or invalid")
+
+            # For now, process only the first video
+            # TODO: Allow user to select which video or process all
+            video_id = video_ids[0]
+            print(f"Processing first video from playlist: {video_id} (total: {len(video_ids)} videos)")
+        else:
+            # Step 1: Extract video ID
+            video_id = extract_video_id(request.youtube_url)
+            print(f"Processing video: {video_id}")
         
         # Step 2: Try to get transcript
         transcript = get_transcript(video_id)

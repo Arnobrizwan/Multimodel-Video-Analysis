@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import axios from 'axios'
 
-export default function VideoUpload({ onVideoProcessed }) {
+export default function VideoUpload({ onVideoProcessed, onLogout }) {
   const [url, setUrl] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   const validateYouTubeUrl = (url) => {
-    const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com\/(watch\?v=|embed\/|v\/)|youtu\.be\/)[\w-]{11}(\S*)?$/
+    // Support individual videos, shorts, and playlists
+    const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com\/(watch\?v=|embed\/|v\/|shorts\/|playlist\?list=)|youtu\.be\/)[\w-]+(\S*)?$/
     return youtubeRegex.test(url)
   }
 
@@ -45,6 +46,20 @@ export default function VideoUpload({ onVideoProcessed }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-6">
       <div className="max-w-2xl w-full">
+        {/* Logout button at top */}
+        {onLogout && (
+          <div className="flex justify-end mb-4">
+            <button
+              onClick={onLogout}
+              className="flex items-center gap-2 text-gray-700 hover:text-gray-900 font-medium px-4 py-2 rounded-lg bg-white hover:bg-gray-50 transition-all shadow"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd"/>
+              </svg>
+              Logout
+            </button>
+          </div>
+        )}
         <div className="bg-white rounded-2xl shadow-2xl p-8">
           {/* Header */}
           <div className="text-center mb-8">
@@ -71,11 +86,14 @@ export default function VideoUpload({ onVideoProcessed }) {
                 type="text"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://www.youtube.com/watch?v=..."
+                placeholder="https://www.youtube.com/watch?v=... or playlist URL"
                 className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 required
                 disabled={loading}
               />
+              <p className="mt-2 text-xs text-gray-500">
+                💡 For playlists, the first video will be analyzed
+              </p>
             </div>
 
             {error && (

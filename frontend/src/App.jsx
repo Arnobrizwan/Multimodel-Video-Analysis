@@ -40,7 +40,7 @@ function AppContent() {
   }
 
   if (!videoData) {
-    return <VideoUpload onVideoProcessed={handleVideoProcessed} />
+    return <VideoUpload onVideoProcessed={handleVideoProcessed} onLogout={handleLogout} />
   }
 
   return (
