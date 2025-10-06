@@ -1,23 +1,12 @@
-import { useState } from 'react'
+import { VideoProvider, useVideo } from './context/VideoContext'
 import VideoUpload from './components/VideoUpload'
 import VideoPlayer from './components/VideoPlayer'
 import SectionList from './components/SectionList'
 import ChatInterface from './components/ChatInterface'
 import VisualSearch from './components/VisualSearch'
 
-export default function App() {
-  const [videoData, setVideoData] = useState(null)
-  const [currentTime, setCurrentTime] = useState(0)
-
-  const handleVideoProcessed = (data) => {
-    setVideoData(data)
-  }
-
-  const handleTimestampClick = (seconds) => {
-    setCurrentTime(seconds)
-    // Force re-render by setting a unique value
-    setTimeout(() => setCurrentTime(seconds + 0.001), 10)
-  }
+function AppContent() {
+  const { videoData, currentTime, handleVideoProcessed, handleTimestampClick, resetVideo } = useVideo()
 
   if (!videoData) {
     return <VideoUpload onVideoProcessed={handleVideoProcessed} />
@@ -40,7 +29,7 @@ export default function App() {
             </div>
           </div>
           <button
-            onClick={() => setVideoData(null)}
+            onClick={resetVideo}
             className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium px-4 py-2 rounded-lg hover:bg-blue-50 transition-all"
           >
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -54,14 +43,14 @@ export default function App() {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
+
           {/* Left Column - Video Player & Sections */}
           <div className="lg:col-span-2 space-y-6">
             <VideoPlayer
               videoId={videoData.video_id}
               seekTime={currentTime}
             />
-            
+
             <SectionList
               sections={videoData.sections}
               onTimestampClick={handleTimestampClick}
@@ -102,5 +91,13 @@ export default function App() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function App() {
+  return (
+    <VideoProvider>
+      <AppContent />
+    </VideoProvider>
   )
 }

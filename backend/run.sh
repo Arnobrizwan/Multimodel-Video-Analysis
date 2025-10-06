@@ -25,10 +25,22 @@ fi
 echo "✅ Activating virtual environment..."
 source venv/bin/activate
 
-# Check if dependencies are installed
-if ! python -c "import fastapi" 2>/dev/null; then
-    echo "📦 Installing dependencies..."
+# Check if dependencies are installed by verifying requirements.txt timestamp
+REQUIREMENTS_FILE="requirements.txt"
+VENV_INSTALLED_FLAG="venv/.dependencies_installed"
+
+if [ ! -f "$VENV_INSTALLED_FLAG" ] || [ "$REQUIREMENTS_FILE" -nt "$VENV_INSTALLED_FLAG" ]; then
+    echo "📦 Installing/updating dependencies from requirements.txt..."
     pip install -r requirements.txt
+    if [ $? -eq 0 ]; then
+        touch "$VENV_INSTALLED_FLAG"
+        echo "✅ Dependencies installed successfully"
+    else
+        echo "❌ Failed to install dependencies"
+        exit 1
+    fi
+else
+    echo "✅ Dependencies already installed"
 fi
 
 # Run the server

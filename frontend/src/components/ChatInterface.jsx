@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import axios from 'axios'
+import { parseTimestamp, TIMESTAMP_REGEX } from '../utils/timestampParser'
 
 export default function ChatInterface({ videoId, onTimestampClick }) {
   const [messages, setMessages] = useState([])
@@ -55,13 +56,13 @@ export default function ChatInterface({ videoId, onTimestampClick }) {
   }
 
   const renderAnswerWithTimestamps = (text) => {
-    // Parse [MM:SS] or [HH:MM:SS] timestamps and make them clickable
-    const timestampRegex = /\[(\d{1,2}):(\d{2})(?::(\d{2}))?\]/g
     const parts = []
     let lastIndex = 0
     let match
 
-    while ((match = timestampRegex.exec(text)) !== null) {
+    const regex = new RegExp(TIMESTAMP_REGEX.source, 'g')
+
+    while ((match = regex.exec(text)) !== null) {
       // Add text before timestamp
       if (match.index > lastIndex) {
         parts.push(
@@ -71,25 +72,32 @@ export default function ChatInterface({ videoId, onTimestampClick }) {
         )
       }
 
-      // Calculate seconds
-      const hours = match[3] ? parseInt(match[1]) : 0
-      const mins = match[3] ? parseInt(match[2]) : parseInt(match[1])
-      const secs = match[3] ? parseInt(match[3]) : parseInt(match[2])
-      const totalSeconds = hours * 3600 + mins * 60 + secs
+      // Parse timestamp to seconds
+      const totalSeconds = parseTimestamp(match[0])
 
-      // Add clickable timestamp HYPERLINK
-      parts.push(
-        <button
-          key={`timestamp-${match.index}`}
-          onClick={() => onTimestampClick(totalSeconds)}
-          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold hover:underline transition-colors mx-0.5"
-        >
-          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"/>
-          </svg>
-          {match[0]}
-        </button>
-      )
+      if (totalSeconds !== null) {
+        // Add clickable timestamp
+        parts.push(
+          <button
+            key={`timestamp-${match.index}`}
+            onClick={() => onTimestampClick(totalSeconds)}
+            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold hover:underline transition-colors mx-0.5"
+            aria-label={`Jump to ${match[0]}`}
+          >
+            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"/>
+            </svg>
+            {match[0]}
+          </button>
+        )
+      } else {
+        // If parsing failed, render as plain text
+        parts.push(
+          <span key={`text-${match.index}`}>
+            {match[0]}
+          </span>
+        )
+      }
 
       lastIndex = match.index + match[0].length
     }

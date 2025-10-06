@@ -6,18 +6,30 @@ export default function VideoUpload({ onVideoProcessed }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  const validateYouTubeUrl = (url) => {
+    const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com\/(watch\?v=|embed\/|v\/)|youtu\.be\/)[\w-]{11}(\S*)?$/
+    return youtubeRegex.test(url)
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     setError('')
 
+    // Client-side URL validation
+    if (!validateYouTubeUrl(url)) {
+      setError('Please enter a valid YouTube URL (e.g., https://www.youtube.com/watch?v=...)')
+      setLoading(false)
+      return
+    }
+
     try {
       const response = await axios.post('http://localhost:8000/process_video', {
         youtube_url: url
       })
-      
+
       onVideoProcessed(response.data)
-      
+
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to process video')
     } finally {
