@@ -68,6 +68,10 @@ class UserCreate(BaseModel):
             raise ValueError("Password must be at least 8 characters")
         if len(v) > 128:
             raise ValueError("Password too long (max 128 characters)")
+        
+        # bcrypt has a 72-byte limit
+        if len(v.encode('utf-8')) > 72:
+            raise ValueError("Password exceeds 72 bytes (bcrypt limit)")
 
         # Require complexity
         has_upper = any(c.isupper() for c in v)

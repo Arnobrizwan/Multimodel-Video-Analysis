@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import List, Dict, Optional
 from dotenv import load_dotenv
 import yt_dlp
+from yt_dlp.utils import DownloadError
 import cv2
 import base64
 import hashlib
@@ -77,14 +78,10 @@ def get_cors_origins():
         print(f"CORS: Using configured origins: {origins}")
         return origins
     else:
-        # Development: Allow localhost variants
+        # Development: Allow primary frontend port only
         dev_origins = [
-            "http://localhost:5173",
             "http://localhost:3000",
-            "http://localhost:3001",
-            "http://127.0.0.1:5173",
-            "http://127.0.0.1:3000",
-            "http://127.0.0.1:3001"
+            "http://127.0.0.1:3000"
         ]
         print(f"CORS: Development mode - allowing localhost origins: {dev_origins}")
         return dev_origins
@@ -422,23 +419,58 @@ def get_transcript(video_id: str) -> Optional[List[Dict]]:
 
 def download_youtube_video(video_id: str, output_path: str) -> str:
     """Download YouTube video for Gemini analysis"""
-    ydl_opts = {
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',  # Most flexible
+    url = f'https://www.youtube.com/watch?v={video_id}'
+
+    base_opts = {
         'outtmpl': output_path,
         'quiet': True,
         'no_warnings': True,
-        'merge_output_format': 'mp4',  # Force MP4 output
-        'postprocessors': [{
-            'key': 'FFmpegVideoConvertor',
-            'preferedformat': 'mp4',
-        }],
+        'ignoreerrors': False,
     }
-    
-    url = f'https://www.youtube.com/watch?v={video_id}'
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url])
-    
-    return output_path
+
+    format_attempts = [
+        {
+            'format': 'bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            'merge_output_format': 'mp4'
+        },
+        {
+            'format': 'bestvideo+bestaudio/best',
+            'merge_output_format': 'mp4'
+        },
+        {
+            'format': 'best'
+        }
+    ]
+
+    last_error: Optional[Exception] = None
+
+    for attempt in format_attempts:
+        opts = base_opts.copy()
+        opts.update(attempt)
+
+        try:
+            print(f"Attempting yt_dlp download with format: {opts['format']}")
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                ydl.download([url])
+            return output_path
+        except DownloadError as err:
+            last_error = err
+            print(f"yt_dlp download attempt failed ({opts['format']}): {err}")
+            if os.path.exists(output_path):
+                try:
+                    os.remove(output_path)
+                except OSError:
+                    pass
+            continue
+
+    raise VideoDownloadError(
+        "Failed to download video for processing",
+        {
+            "video_id": video_id,
+            "attempted_formats": [attempt['format'] for attempt in format_attempts],
+            "error": str(last_error) if last_error else "unknown"
+        }
+    )
 
 
 def extract_frames(video_path: str, max_frames: int = 12) -> List[Dict]:
@@ -830,8 +862,13 @@ Create 3-7 logical sections based on the content. Make timestamps precise and su
             temp_dir = tempfile.mkdtemp()
             video_file_path = os.path.join(temp_dir, f"{video_id}.mp4")
             print("Downloading video for visual indexing...")
-            download_youtube_video(video_id, video_file_path)
-            print(f"✓ Video downloaded for visual indexing: {video_file_path}")
+            try:
+                download_youtube_video(video_id, video_file_path)
+                print(f"✓ Video downloaded for visual indexing: {video_file_path}")
+            except VideoDownloadError as e:
+                print(f"⚠ Video download failed, skipping visual indexing: {e.message}")
+                video_file_path = None
+                temp_dir = None
             
         else:
             # PATH B: No transcript - use Gemini video analysis
