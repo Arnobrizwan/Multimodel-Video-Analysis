@@ -1,0 +1,16 @@
+# Backend
+backend/__pycache__/
+backend/*.py[cod]
+backend/.env
+backend/chromadb/
+backend/*.db
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+
+# General
+.DS_Store
+*.log
